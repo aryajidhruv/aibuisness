@@ -4,7 +4,8 @@ import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
 import CampaignPage from './pages/CampaignPage'
 import ResultsPage from './pages/ResultsPage'
-import Login from './pages/Login' // Login page imported hai perfectly
+import Login from './pages/Login' 
+import Signup from './pages/Signup' // 👈 1. Naya Signup page import karo
 import React from 'react'
 
 export default function App() {
@@ -24,9 +25,10 @@ export default function App() {
       {page === 'dashboard'  && <DashboardPage navigate={navigate} campaign={campaign} />}
       {page === 'campaign'   && <CampaignPage navigate={navigate} campaign={campaign} />}
       {page === 'results'    && <ResultsPage navigate={navigate} campaign={campaign} />}
-      
-      {/* 💥 MAGIC FIX: Jab page 'login' ho, toh Login component render hoga */}
       {page === 'login'      && <Login navigate={navigate} />}
+      
+      {/* 🚀 2. MAGIC FIX FOR SIGNUP: Jab page state 'signup' hogi, toh ye render hoga */}
+      {page === 'signup'     && <Signup navigate={navigate} />}
     </>
   )
 }

@@ -2,18 +2,87 @@
 const express = require('express');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs'); // 🔥 FIXED: Password securely hash karne ke liye import kiya
 const { OAuth2Client } = require('google-auth-library');
-const User = require('../Models/user');
+const User = require('../Models/user'); // Match exact case (User.js)
 
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Helper function JWT token generate karne ke liye (Code repetitive na ho)
+const generateTokenAndSetCookie = (user, res) => {
+  const authToken = jwt.sign(
+    { id: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  res.cookie('token', authToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  return authToken;
+};
+
 // -------------------------------------------------------------------------
-// Route 0: Frontend Google Sign-In button se aaya hua ID token verify karna
+// 🔥 NEW FIXED ROUTE: Normal Email + Password Signup (`POST /api/auth/register`)
+// -------------------------------------------------------------------------
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // 1. Basic validation check
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // 2. Check karo user pehle se exist toh nahi karta
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered. Please log in.' });
+    }
+
+    // 3. Password ko hash karo
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // 4. Naya user MongoDB Atlas par create karo
+    const newUser = await User.create({
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword
+    });
+
+    console.log("Naya Email User Atlas cloud par save ho gaya! 🎉:", newUser.email);
+
+    // 5. Token generate karke cookie set karo
+    const authToken = generateTokenAndSetCookie(newUser, res);
+
+    // 6. Response pack karke bhejo
+    res.status(201).json({
+      token: authToken,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+      },
+    });
+
+  } catch (error) {
+    console.error("Email signup mein error aaya:", error);
+    res.status(500).json({ message: 'Server error during registration' });
+  }
+});
+
+// -------------------------------------------------------------------------
+// Route 0: Frontend Google Custom SDK Login/Signup button se aaya token (`POST /api/auth/google`)
 // -------------------------------------------------------------------------
 router.post('/google', async (req, res) => {
   try {
-    const { token } = req.body;
+    const { token } = req.body; 
 
     if (!token) {
       return res.status(400).json({ message: 'Google token is required' });
@@ -29,27 +98,26 @@ router.post('/google', async (req, res) => {
 
     let user = await User.findOne({ googleId });
 
+    // SIGNUP FLOW: Agar user nahi mila database mein, toh naya user banao
     if (!user) {
       user = await User.create({
         googleId,
         name: payload.name,
         email: payload.email,
         avatar: payload.picture,
+        accessToken: req.body.accessToken || null,
+        refreshToken: req.body.refreshToken || null
       });
+      console.log("Naya user successfully register ho gaya (Signup):", user.email);
+    } else {
+      // LOGIN FLOW: Existing user ke tokens update karo
+      if (req.body.accessToken) user.accessToken = req.body.accessToken;
+      if (req.body.refreshToken) user.refreshToken = req.body.refreshToken;
+      await user.save();
+      console.log("Purana user successfully login ho gaya (Login):", user.email);
     }
 
-    const authToken = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('token', authToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const authToken = generateTokenAndSetCookie(user, res);
 
     res.json({
       token: authToken,
@@ -67,63 +135,58 @@ router.post('/google', async (req, res) => {
 });
 
 // -------------------------------------------------------------------------
-// Route 1: Jab user "Login with Google" button par click karega
+// Route 1: Direct Link Redirect Auth (`GET /api/auth/google`)
 // -------------------------------------------------------------------------
 router.get(
   '/google',
-  // Passport ko bol rahe hain ki user ko Google ke login page par redirect (bhej) kare
-  // 'profile' aur 'email' ka matlab hume user ka naam, photo aur email chahiye
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+  passport.authenticate('google', { 
+    scope: [
+      'profile', 
+      'email', 
+      'https://www.googleapis.com/auth/gmail.readonly'
+    ],
+    accessType: 'offline', 
+    prompt: 'select_account'
+  })
 );
 
 // -------------------------------------------------------------------------
-// Route 2: Jab user Google par login kar lega, to Google is URL par wapas bhejega
+// Route 2: Google Callback Handler (`GET /api/auth/google/callback`)
 // -------------------------------------------------------------------------
 router.get(
   '/google/callback',
-  // Agar login fail ho gaya, to user ko wapas login page par bhej do
   passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-  (req, res) => {
+  async (req, res) => {
     try {
-      // req.user mein hume login kiye hue user ka data mil jata hai jo passport ne nikaala tha
-      const user = req.user;
+      const user = req.user; 
 
-      // 1. Ek naya JWT Token bana rahe hain jisme user ki Database ID chhupi hogi
-      // Yeh token 7 din tak valid rahega (7d)
-      const token = jwt.sign(
-        { id: user._id }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: '7d' }
-      );
+      if (!user) {
+        return res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+      }
 
-      // 2. Token ko 'httpOnly' cookie ke andar daal kar browser ko de rahe hain
-      res.cookie('token', token, {
-        httpOnly: true,                 // JavaScript is token ko read nahi kar sakti (Security ke liye best hai!)
-        secure: process.env.NODE_ENV === 'production', // Sirf HTTPS (secure network) par chalega jab live hoga
-        sameSite: 'lax',                // CSRF attacks se bachane ke liye
-        maxAge: 7 * 24 * 60 * 60 * 1000 // Cookie ki umar (7 din milliseconds mein)
-      });
+      const dbUser = await User.findById(user._id);
+      if (dbUser) {
+        if (user.accessToken) dbUser.accessToken = user.accessToken;
+        if (user.refreshToken) dbUser.refreshToken = user.refreshToken;
+        await dbUser.save();
+      }
 
-      // 3. Sab sahi hone ke baad, user ko frontend ke dashboard page par bhej do
+      generateTokenAndSetCookie(user, res);
       res.redirect(`${process.env.CLIENT_URL}/dashboard`);
 
     } catch (error) {
       console.error("Callback mein dikkat aayi:", error);
-      res.status(500).json({ message: "Internal Server Error" });
+      res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
     }
   }
 );
 
 // -------------------------------------------------------------------------
-// Route 3: User ko logout karne ke liye API
+// Route 3: Logout Endpoint
 // -------------------------------------------------------------------------
 router.get('/logout', (req, res) => {
-  // Browser se 'token' naam ki cookie ko mita do (clear kar do)
   res.clearCookie('token');
-  
-  // Frontend ko message bhej do ki logout ho gaya hai
   res.json({ message: "Logged out successfully!" });
 });
 
-// Is router ko export kar rahe hain taaki main server file (index.js) ise use kar sake
 module.exports = router;
