@@ -9,13 +9,8 @@ require('dotenv').config();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
 
-// Ensure uploads directory exists
-const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir);
-}
+app.use(cors({ origin: '*' }));
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -23,33 +18,29 @@ const upload = multer({ dest: 'uploads/' });
 let leadsDb = []; 
 let currentScript = "Hi {{firstName}}, this is an automated outbound check from our platform.";
 
-// Twilio Setup safely wrapped
+// Twilio Setup
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioClient = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
 // ==========================================
-// 🔐 GOOGLE AUTH ROUTE PASS-THROUGH (FIX)
+// 🔐 GOOGLE AUTH ROUTE (MISSING THA, AB ADDED HAI)
 // ==========================================
 app.post('/api/auth/google', (req, res) => {
-  console.log("📥 Auth Token received from frontend:", req.body.token ? "YES" : "NO");
-  
-  // Return successful dummy user response to unblock the frontend dashboard route instantly
+  console.log("📥 Auth Token received from frontend.");
+  // Yahan tumhara logic ayega (user ko DB mein check karna/save karna)
   res.json({
     success: true,
     message: "Authentication successful",
-    user: {
-      name: "Dhruv Arya",
-      email: "aryajiidhruv@gmail.com"
-    },
-    token: "dummy-jwt-token-for-v1"
+    token: "mock-token-123"
   });
 });
 
-
-// 1. CSV Parse Route
+// ==========================================
+// 1. CSV PARSE ROUTE
+// ==========================================
 app.post('/api/voice/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, message: 'File missing' });
+  if (!req.file) return res.status(400).json({ success: false, message: 'File missing!' });
 
   const results = [];
   let idCounter = 1;
@@ -57,81 +48,72 @@ app.post('/api/voice/upload', upload.single('file'), (req, res) => {
   fs.createReadStream(req.file.path)
     .pipe(csvParser())
     .on('data', (data) => {
-      const name = data.name || data.firstName || data.Name || '';
+      const name = data.name || data.firstName || 'Customer';
       const phone = data.phone || data.Phone || '';
       if (phone) {
-        results.push({ id: idCounter++, name, phone: phone.trim(), status: 'pending' });
+        results.push({ id: idCounter++, name: name.trim(), phone: phone.trim(), status: 'pending' });
       }
     })
     .on('end', () => {
       leadsDb = results;
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (e) { console.log("File cleanup bypass"); }
-      res.json({ success: true, leads: leadsDb });
-    })
-    .on('error', (err) => {
-      res.status(500).json({ success: false, message: 'CSV parse failed' });
+      fs.unlinkSync(req.file.path);
+      res.json({ success: true, message: "List imported successfully! 🎉", leads: leadsDb });
     });
 });
 
-// 2. Poll Status
-app.get('/api/voice/leads', (req, res) => {
-  res.json({ success: true, leads: leadsDb });
-});
-
-// 3. Run Campaign
+// ==========================================
+// 2. RUN CAMPAIGN
+// ==========================================
 app.post('/api/voice/run-campaign', async (req, res) => {
   if (req.body.scriptTemplate) currentScript = req.body.scriptTemplate;
   
-  if (!twilioClient) {
-    return res.status(500).json({ success: false, message: 'Twilio env components are missing!' });
-  }
+  if (!twilioClient) return res.status(500).json({ success: false, message: 'Twilio invalid' });
 
-  res.json({ success: true, message: 'Campaign started.' });
+  res.json({ success: true, message: 'Campaign triggered! 📞' });
 
   for (let lead of leadsDb) {
     if (lead.status === 'called') continue;
     try {
+      lead.status = 'queued';
+      const cleanPhone = lead.phone.replace(/[\s-]/g, '');
+      
       await twilioClient.calls.create({
-        to: lead.phone,
+        to: cleanPhone,
         from: process.env.TWILIO_PHONE_NUMBER,
         url: `${process.env.PUBLIC_BASE_URL}/api/voice/twiml/start/${lead.id}`,
         method: 'POST',
       });
+      console.log(`📡 Call fired to: ${cleanPhone}`);
     } catch (err) {
-      console.error(`Failed for entry ${lead.id}:`, err.message);
+      console.error(`❌ Fail ID ${lead.id}:`, err.message);
       lead.status = 'failed';
     }
   }
 });
 
-// 4. Twilio Webhook Instruction
+// ==========================================
+// 3. TWILIO WEBHOOK
+// ==========================================
 app.post('/api/voice/twiml/start/:id', (req, res) => {
   const leadId = parseInt(req.params.id);
   const lead = leadsDb.find(l => l.id === leadId);
   
-  let personalizedText = currentScript;
-  if (lead) {
-    personalizedText = currentScript.replace('{{firstName}}', lead.name);
-  }
+  const personalizedText = lead ? currentScript.replace('{{firstName}}', lead.name) : currentScript;
 
-  const response = new twilio.twiml.VoiceResponse();
-  response.say({ voice: 'Polly.Joanna-Neural' }, personalizedText);
-  response.pause({ length: 1 });
-  response.say('Goodbye!');
+  console.log(`📞 Serving TwiML for Lead ID: ${leadId}`);
+
+  const twiml = new twilio.twiml.VoiceResponse();
+  twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, personalizedText);
+  twiml.pause({ length: 1 });
+  twiml.say('Thank you, goodbye!');
 
   if (lead) lead.status = 'called';
 
-  res.type('text/xml');
-  res.send(response.toString());
+  res.set('Content-Type', 'text/xml');
+  res.send(twiml.toString());
 });
 
-app.get('/', (req, res) => {
-  res.send("Dialer Engine Online 🚀");
-});
+app.get('/api/voice/leads', (req, res) => res.json({ success: true, leads: leadsDb }));
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`🚀 Automated Dial Server is permanently online on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server online on port ${PORT}`));
