@@ -12,214 +12,558 @@ import {
   Position
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import axios from 'axios';
 
-// 🔀 CUSTOM IF/ELSE NODE COMPONENT WITH "YES" & "NO" PORTS
-// This matches your workfloe.jpeg perfectly
-function CustomLogicNode({ data }) {
+const API_BASE = 'http://localhost:5001';
+
+// ============================================================
+// CUSTOM NODE COMPONENTS
+// ============================================================
+
+function TriggerNode({ data, selected }) {
   return (
     <div style={{
-      background: '#0f1622',
-      color: '#fff',
-      border: '2px solid #ea580c',
-      borderRadius: '8px',
-      padding: '12px',
-      fontWeight: '600',
-      fontSize: '13px',
-      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)',
-      minWidth: '160px',
-      textAlign: 'center',
-      position: 'relative'
+      background: '#0f1622', border: `2px solid ${selected ? '#f59e0b' : '#2563eb'}`,
+      borderRadius: '10px', padding: '0', minWidth: '200px',
+      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)', cursor: 'pointer'
     }}>
-      {/* Target Handle: Top Input for incoming data */}
-      <Handle type="target" position={Position.Top} style={{ background: '#3b82f6', width: '8px', height: '8px' }} />
-      
-      <div>❓ LOGIC: If/Else Split</div>
-      
-      {/* Source Handle 1: Left side for "YES" path */}
-      <div style={{ position: 'absolute', bottom: '-5px', left: '25%', transform: 'translateX(-50%)', fontSize: '9px', color: '#10b981' }}>yes</div>
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        id="yes" 
-        style={{ left: '25%', background: '#10b981', width: '8px', height: '8px' }} 
-      />
-
-      {/* Source Handle 2: Right side for "NO" path */}
-      <div style={{ position: 'absolute', bottom: '-5px', left: '75%', transform: 'translateX(-50%)', fontSize: '9px', color: '#ef4444' }}>no</div>
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        id="no" 
-        style={{ left: '75%', background: '#ef4444', width: '8px', height: '8px' }} 
-      />
+      <div style={{ background: 'rgba(37,99,235,0.15)', padding: '6px 12px', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ fontSize: '10px', color: '#60a5fa', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>⚡ Trigger</span>
+      </div>
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff', marginBottom: '4px' }}>{data.label}</div>
+        {data.config?.fileName && (
+          <div style={{ fontSize: '11px', color: '#64748b' }}>📁 {data.config.fileName}</div>
+        )}
+        {!data.config?.fileName && (
+          <div style={{ fontSize: '11px', color: '#475569' }}>Click to configure</div>
+        )}
+      </div>
+      <Handle type="source" position={Position.Right} style={{ background: '#2563eb', width: '10px', height: '10px', right: '-6px' }} />
     </div>
   );
 }
 
+function VoiceCallNode({ data, selected }) {
+  return (
+    <div style={{
+      background: '#0f1622', border: `2px solid ${selected ? '#f59e0b' : '#10b981'}`,
+      borderRadius: '10px', padding: '0', minWidth: '200px',
+      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)', cursor: 'pointer'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ background: '#10b981', width: '10px', height: '10px', left: '-6px' }} />
+      <div style={{ background: 'rgba(16,185,129,0.15)', padding: '6px 12px', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>📞 Action</span>
+      </div>
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff', marginBottom: '4px' }}>Voice Call</div>
+        <div style={{ fontSize: '11px', color: '#64748b' }}>{data.config?.script ? data.config.script.substring(0, 30) + '...' : 'Click to configure'}</div>
+      </div>
+      <Handle type="source" position={Position.Right} style={{ background: '#10b981', width: '10px', height: '10px', right: '-6px' }} />
+    </div>
+  );
+}
+
+function IfElseNode({ data, selected }) {
+  return (
+    <div style={{
+      background: '#0f1622', border: `2px solid ${selected ? '#f59e0b' : '#ea580c'}`,
+      borderRadius: '10px', padding: '0', minWidth: '200px',
+      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)', cursor: 'pointer', position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ background: '#ea580c', width: '10px', height: '10px', left: '-6px' }} />
+      <div style={{ background: 'rgba(234,88,12,0.15)', padding: '6px 12px', borderRadius: '8px 8px 0 0' }}>
+        <span style={{ fontSize: '10px', color: '#fb923c', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>❓ Logic</span>
+      </div>
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff', marginBottom: '4px' }}>If/Else</div>
+        <div style={{ fontSize: '11px', color: '#64748b' }}>minScore: {data.config?.minScore || 70}</div>
+      </div>
+      {/* YES handle - top right */}
+      <div style={{ position: 'absolute', right: '-30px', top: '35%', fontSize: '9px', color: '#10b981', fontWeight: 'bold' }}>yes</div>
+      <Handle type="source" position={Position.Right} id="yes" style={{ background: '#10b981', width: '10px', height: '10px', right: '-6px', top: '35%' }} />
+      {/* NO handle - bottom right */}
+      <div style={{ position: 'absolute', right: '-24px', top: '65%', fontSize: '9px', color: '#ef4444', fontWeight: 'bold' }}>no</div>
+      <Handle type="source" position={Position.Right} id="no" style={{ background: '#ef4444', width: '10px', height: '10px', right: '-6px', top: '65%' }} />
+    </div>
+  );
+}
+
+function WebhookNode({ data, selected }) {
+  return (
+    <div style={{
+      background: '#0f1622', border: `2px solid ${selected ? '#f59e0b' : '#0d9488'}`,
+      borderRadius: '10px', padding: '0', minWidth: '200px',
+      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)', cursor: 'pointer'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ background: '#0d9488', width: '10px', height: '10px', left: '-6px' }} />
+      <div style={{ background: 'rgba(13,148,136,0.15)', padding: '6px 12px', borderRadius: '8px 8px 0 0' }}>
+        <span style={{ fontSize: '10px', color: '#2dd4bf', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>🌐 Action</span>
+      </div>
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff', marginBottom: '4px' }}>Webhook</div>
+        <div style={{ fontSize: '11px', color: '#64748b' }}>{data.config?.url ? data.config.url.substring(0, 25) + '...' : 'Click to configure'}</div>
+      </div>
+    </div>
+  );
+}
+
+function EnrichLeadNode({ data, selected }) {
+  return (
+    <div style={{
+      background: '#0f1622', border: `2px solid ${selected ? '#f59e0b' : '#a855f7'}`,
+      borderRadius: '10px', padding: '0', minWidth: '200px',
+      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)', cursor: 'pointer'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ background: '#a855f7', width: '10px', height: '10px', left: '-6px' }} />
+      <div style={{ background: 'rgba(168,85,247,0.15)', padding: '6px 12px', borderRadius: '8px 8px 0 0' }}>
+        <span style={{ fontSize: '10px', color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>🔍 AI Node</span>
+      </div>
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff', marginBottom: '4px' }}>Enrich Lead</div>
+        <div style={{ fontSize: '11px', color: '#64748b' }}>AI powered enrichment</div>
+      </div>
+      <Handle type="source" position={Position.Right} style={{ background: '#a855f7', width: '10px', height: '10px', right: '-6px' }} />
+    </div>
+  );
+}
+
+// ============================================================
+// CONFIG PANEL — Right side mein node click pe dikhega
+// ============================================================
+function ConfigPanel({ node, onUpdate, onClose }) {
+  const [config, setConfig] = useState(node.data.config || {});
+
+  const handleSave = () => {
+    onUpdate(node.id, config);
+    onClose();
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '8px 10px', background: '#0f1622',
+    border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc',
+    fontSize: '12px', boxSizing: 'border-box', marginTop: '4px'
+  };
+
+  const labelStyle = { fontSize: '11px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' };
+
+  return (
+    <div style={{
+      width: '280px', background: '#0f1622', borderLeft: '1px solid #1e293b',
+      padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Configure Node</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+      </div>
+
+      {/* TRIGGER - CSV Upload */}
+      {node.data.nodeType === 'trigger-csv' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <div style={labelStyle}>Workflow Name</div>
+            <input style={inputStyle} placeholder="e.g. Protein Lead Pipeline"
+              value={config.name || ''} onChange={e => setConfig({ ...config, name: e.target.value })} />
+          </div>
+          <div>
+            <div style={labelStyle}>Upload CSV File</div>
+            <input type="file" accept=".csv" style={{ ...inputStyle, padding: '6px' }}
+              onChange={e => setConfig({ ...config, fileName: e.target.files[0]?.name, file: e.target.files[0] })} />
+          </div>
+          {config.fileName && (
+            <div style={{ fontSize: '11px', color: '#10b981' }}>✅ {config.fileName}</div>
+          )}
+        </div>
+      )}
+
+      {/* VOICE CALL */}
+      {node.data.nodeType === 'action-voice' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <div style={labelStyle}>First Message</div>
+            <input style={inputStyle} placeholder="Hi {{firstName}}, calling from..."
+              value={config.firstMessage || ''} onChange={e => setConfig({ ...config, firstMessage: e.target.value })} />
+          </div>
+          <div>
+            <div style={labelStyle}>System Prompt (AI Behavior)</div>
+            <textarea rows="5" style={inputStyle} placeholder="Tu ek sales rep hai. Lead se poochho..."
+              value={config.script || ''} onChange={e => setConfig({ ...config, script: e.target.value })} />
+          </div>
+          <div>
+            <div style={labelStyle}>Language</div>
+            <select style={inputStyle} value={config.language || 'Hindi'} onChange={e => setConfig({ ...config, language: e.target.value })}>
+              <option>Hindi</option>
+              <option>English</option>
+              <option>Hinglish</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* IF/ELSE */}
+      {node.data.nodeType === 'logic-ifelse' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <div style={labelStyle}>Condition</div>
+            <select style={inputStyle} value={config.condition || 'sentiment'} onChange={e => setConfig({ ...config, condition: e.target.value })}>
+              <option value="sentiment">Call Outcome (Interested/Not)</option>
+              <option value="score">AI Score</option>
+              <option value="duration">Call Duration</option>
+            </select>
+          </div>
+          {config.condition === 'score' && (
+            <div>
+              <div style={labelStyle}>Min Score (YES path)</div>
+              <input type="number" style={inputStyle} placeholder="70"
+                value={config.minScore || ''} onChange={e => setConfig({ ...config, minScore: e.target.value })} />
+            </div>
+          )}
+          {config.condition === 'duration' && (
+            <div>
+              <div style={labelStyle}>Min Duration (seconds)</div>
+              <input type="number" style={inputStyle} placeholder="30"
+                value={config.minDuration || ''} onChange={e => setConfig({ ...config, minDuration: e.target.value })} />
+            </div>
+          )}
+          <div style={{ fontSize: '11px', color: '#64748b', background: '#1e293b', padding: '8px', borderRadius: '6px' }}>
+            <div style={{ color: '#10b981', marginBottom: '4px' }}>✅ YES → Interested leads</div>
+            <div style={{ color: '#ef4444' }}>❌ NO → Not interested leads</div>
+          </div>
+        </div>
+      )}
+
+      {/* WEBHOOK */}
+      {node.data.nodeType === 'action-webhook' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <div style={labelStyle}>Webhook URL</div>
+            <input style={inputStyle} placeholder="https://your-crm.com/webhook"
+              value={config.url || ''} onChange={e => setConfig({ ...config, url: e.target.value })} />
+          </div>
+          <div>
+            <div style={labelStyle}>Method</div>
+            <select style={inputStyle} value={config.method || 'POST'} onChange={e => setConfig({ ...config, method: e.target.value })}>
+              <option>POST</option>
+              <option>GET</option>
+            </select>
+          </div>
+          <div>
+            <div style={labelStyle}>Payload Mode</div>
+            <select style={inputStyle} value={config.payloadMode || 'custom_json'} onChange={e => setConfig({ ...config, payloadMode: e.target.value })}>
+              <option value="custom_json">Custom JSON</option>
+              <option value="lead_data">Lead Data Only</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* ENRICH LEAD */}
+      {node.data.nodeType === 'ai-enrich' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ fontSize: '12px', color: '#94a3b8' }}>AI will automatically enrich lead data before the call — adding context, company info, and personalization hints.</div>
+        </div>
+      )}
+
+      <button onClick={handleSave} style={{
+        background: '#2563eb', border: 'none', color: 'white', padding: '10px',
+        borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', marginTop: 'auto'
+      }}>
+        💾 Save Config
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN WORKFLOW PAGE
+// ============================================================
 const initialNodes = [];
 const initialEdges = [];
 
 export default function WorkflowPage({ navigate }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [workflowName, setWorkflowName] = useState('My Campaign Workflow');
+  const [isRunning, setIsRunning] = useState(false);
+  const [runLog, setRunLog] = useState([]);
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
-  // Register our custom conditional node type mapping
-  const nodeTypes = useMemo(() => ({ customLogic: CustomLogicNode }), []);
+  const nodeTypes = useMemo(() => ({
+    triggerCsv:    TriggerNode,
+    actionVoice:   VoiceCallNode,
+    logicIfelse:   IfElseNode,
+    actionWebhook: WebhookNode,
+    aiEnrich:      EnrichLeadNode,
+  }), []);
 
-  // 1. Connection Engine setup
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge({ 
-      ...params, 
-      animated: true, 
+    (params) => setEdges((eds) => addEdge({
+      ...params,
+      animated: true,
       style: { stroke: '#3b82f6', strokeWidth: 2 },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#3b82f6' }
     }, eds)),
     [setEdges]
   );
 
-  // Core function to allocate custom nodes safely
-  const createCustomNode = (type, label, color, position) => {
+  const createNode = (nodeType, label, position) => {
     const id = `node_${Date.now()}`;
-    
-    // If it's our logic block, give it the registered custom component type
-    if (type === 'LOGIC' && label === 'If/Else Split') {
-      return {
-        id,
-        type: 'customLogic',
-        position,
-        data: { label }
-      };
-    }
-
-    let flowType = 'default';
-    if (type === 'TRIGGER') flowType = 'input';
-    if (type === 'ACTION') flowType = 'output';
-
+    const typeMap = {
+      'trigger-csv':    'triggerCsv',
+      'action-voice':   'actionVoice',
+      'logic-ifelse':   'logicIfelse',
+      'action-webhook': 'actionWebhook',
+      'ai-enrich':      'aiEnrich',
+    };
     return {
       id,
-      type: flowType, 
+      type: typeMap[nodeType],
       position,
-      data: { label: `${type}: ${label}` },
-      style: {
-        background: '#0f1622',
-        color: '#fff',
-        border: `2px solid ${color}`,
-        borderRadius: '8px',
-        padding: '12px',
-        fontWeight: '600',
-        fontSize: '13px',
-        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.7)',
-        minWidth: '160px',
-        textAlign: 'center'
-      },
+      data: { label, nodeType, config: {} }
     };
   };
 
-  // 2. Drag Handlers
-  const onDragStart = (event, nodeType, label, color) => {
-    event.dataTransfer.setData('application/reactflow/type', nodeType);
-    event.dataTransfer.setData('application/reactflow/label', label);
-    event.dataTransfer.setData('application/reactflow/color', color);
+  const onDragStart = (event, nodeType, label) => {
+    event.dataTransfer.setData('nodeType', nodeType);
+    event.dataTransfer.setData('nodeLabel', label);
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  const onDrop = useCallback(
-    (event) => {
-      event.preventDefault();
-      if (!reactFlowWrapper.current || !reactFlowInstance) return;
+  const onDrop = useCallback((event) => {
+    event.preventDefault();
+    if (!reactFlowWrapper.current || !reactFlowInstance) return;
+    const nodeType = event.dataTransfer.getData('nodeType');
+    const label = event.dataTransfer.getData('nodeLabel');
+    if (!nodeType) return;
+    const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    setNodes((nds) => nds.concat(createNode(nodeType, label, position)));
+  }, [reactFlowInstance, setNodes]);
 
-      const type = event.dataTransfer.getData('application/reactflow/type');
-      const label = event.dataTransfer.getData('application/reactflow/label');
-      const color = event.dataTransfer.getData('application/reactflow/color');
-
-      if (!type || !label) return;
-
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      const newNode = createCustomNode(type, label, color, position);
-      setNodes((nds) => nds.concat(newNode));
-    },
-    [reactFlowInstance, setNodes]
-  );
-
-  // 3. Fallback Click Handler
-  const handleItemClick = (type, label, color) => {
-    const offset = nodes.length * 25;
-    const position = { x: 300 + offset, y: 150 + offset };
-    const newNode = createCustomNode(type, label, color, position);
-    setNodes((nds) => nds.concat(newNode));
+  const handleItemClick = (nodeType, label) => {
+    const offset = nodes.length * 30;
+    const position = { x: 250 + offset, y: 200 + offset };
+    setNodes((nds) => nds.concat(createNode(nodeType, label, position)));
   };
 
+  const onNodeClick = useCallback((_, node) => {
+    setSelectedNode(node);
+  }, []);
+
+  const handleConfigUpdate = (nodeId, newConfig) => {
+    setNodes((nds) => nds.map(n =>
+      n.id === nodeId ? { ...n, data: { ...n.data, config: newConfig } } : n
+    ));
+    setSelectedNode(null);
+  };
+
+  // ✅ WORKFLOW EXECUTION ENGINE
+  const handleRunWorkflow = async () => {
+    setIsRunning(true);
+    setRunLog([]);
+
+    const log = (msg, color = '#94a3b8') => {
+      setRunLog(prev => [...prev, { msg, color, time: new Date().toLocaleTimeString() }]);
+    };
+
+    try {
+      // 1. CSV trigger node dhundho
+      const triggerNode = nodes.find(n => n.data.nodeType === 'trigger-csv');
+      if (!triggerNode?.data.config?.file) {
+        log('❌ CSV file upload nahi ki trigger node mein!', '#ef4444'); return;
+      }
+
+      log('📁 CSV upload ho rahi hai...', '#60a5fa');
+      const formData = new FormData();
+      formData.append('file', triggerNode.data.config.file);
+      const uploadRes = await axios.post(`${API_BASE}/api/voice/upload`, formData);
+      const leads = uploadRes.data.leads;
+      log(`✅ ${leads.length} leads parsed!`, '#10b981');
+
+      // 2. Voice call node dhundho
+      const voiceNode = nodes.find(n => n.data.nodeType === 'action-voice');
+      if (!voiceNode) { log('❌ Voice Call node nahi mila!', '#ef4444'); return; }
+
+      log('📞 Calls fire ho rahi hain...', '#60a5fa');
+      const campaignRes = await axios.post(`${API_BASE}/api/voice/run-campaign`, {
+        scriptTemplate: voiceNode.data.config.firstMessage || 'Hi {{firstName}}, calling from CallIQ!',
+        systemPrompt: voiceNode.data.config.script || '',
+        language: voiceNode.data.config.language || 'Hindi'
+      });
+      log(`✅ Campaign fired! ${leads.length} calls queued.`, '#10b981');
+
+      // 3. If/Else node check
+      const ifElseNode = nodes.find(n => n.data.nodeType === 'logic-ifelse');
+      if (ifElseNode) {
+        log('⏳ Call results ka wait kar rahe hain (30 sec)...', '#f59e0b');
+        await new Promise(r => setTimeout(r, 30000));
+
+        const resultsRes = await axios.get(`${API_BASE}/api/voice/results`);
+        const results = resultsRes.data.results;
+        log(`📊 ${results.length} call results mile`, '#60a5fa');
+
+        // 4. Webhook node
+        const webhookNode = nodes.find(n => n.data.nodeType === 'action-webhook');
+        const condition = ifElseNode.data.config?.condition || 'sentiment';
+
+        // YES path leads filter karo
+        const yesLeads = results.filter(r => {
+          if (condition === 'sentiment') return r.status === 'called';
+          if (condition === 'score') return (r.score || 0) >= (ifElseNode.data.config?.minScore || 70);
+          if (condition === 'duration') return (r.duration || 0) >= (ifElseNode.data.config?.minDuration || 30);
+          return false;
+        });
+
+        const noLeads = results.filter(r => !yesLeads.includes(r));
+        log(`✅ YES path: ${yesLeads.length} leads | ❌ NO path: ${noLeads.length} leads`, '#10b981');
+
+        // YES edge se connected webhook hit karo
+        const yesEdge = edges.find(e => e.source === ifElseNode.id && e.sourceHandle === 'yes');
+        if (yesEdge && webhookNode?.data.config?.url) {
+          try {
+            await axios.post(webhookNode.data.config.url, {
+              leads: yesLeads,
+              campaign: workflowName,
+              outcome: 'interested'
+            });
+            log(`🌐 Webhook hit! ${yesLeads.length} interested leads bheje.`, '#10b981');
+          } catch (e) {
+            log(`⚠️ Webhook failed: ${e.message}`, '#f59e0b');
+          }
+        }
+      }
+
+      log('🎉 Workflow complete!', '#10b981');
+    } catch (err) {
+      log(`❌ Error: ${err.message}`, '#ef4444');
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const sidebarItems = [
+    { section: 'TRIGGERS', items: [
+      { type: 'trigger-csv', label: 'Upload List', icon: '📁', color: '#2563eb' },
+      { type: 'trigger-csv', label: 'Schedule', icon: '⏰', color: '#2563eb' },
+      { type: 'trigger-csv', label: 'Webhook', icon: '🔗', color: '#2563eb' },
+    ]},
+    { section: 'AI NODES', items: [
+      { type: 'ai-enrich', label: 'Enrich Lead', icon: '🔍', color: '#a855f7' },
+      { type: 'ai-enrich', label: 'Score Lead', icon: '⭐', color: '#a855f7' },
+      { type: 'ai-enrich', label: 'Classify Lead', icon: '🏷️', color: '#a855f7' },
+      { type: 'ai-enrich', label: 'Personalize Message', icon: '✍️', color: '#a855f7' },
+    ]},
+    { section: 'FILTERS', items: [
+      { type: 'logic-ifelse', label: 'If/Else', icon: '❓', color: '#ea580c' },
+      { type: 'logic-ifelse', label: 'Score Filter', icon: '📊', color: '#ea580c' },
+      { type: 'logic-ifelse', label: 'Tag Filter', icon: '🏷️', color: '#ea580c' },
+      { type: 'logic-ifelse', label: 'Split Segment', icon: '✂️', color: '#ea580c' },
+    ]},
+    { section: 'ACTIONS', items: [
+      { type: 'action-voice', label: 'Voice Call', icon: '📞', color: '#10b981' },
+      { type: 'action-webhook', label: 'Webhook', icon: '🌐', color: '#0d9488' },
+      { type: 'action-voice', label: 'Send SMS', icon: '💬', color: '#10b981' },
+      { type: 'action-webhook', label: 'Push to CRM', icon: '📋', color: '#0d9488' },
+      { type: 'action-webhook', label: 'Slack Alert', icon: '🔔', color: '#0d9488' },
+    ]},
+  ];
+
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#090d16', color: '#f8fafc', fontFamily: 'sans-serif', overflow: 'hidden' }}>
-      
-      {/* SIDEBAR DESIGN PANEL */}
-      <div style={{ width: '260px', backgroundColor: '#0f1622', borderRight: '1px solid #1e293b', padding: '15px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px', zIndex: 10 }}>
-        <div>
-          <button onClick={() => navigate('dashboard')} style={{ background: '#1e293b', border: 'none', color: 'white', padding: '8px', borderRadius: '6px', width: '100%', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-            ← Exit to Dashboard
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#090d16', color: '#f8fafc', fontFamily: 'sans-serif', overflow: 'hidden', flexDirection: 'column' }}>
+
+      {/* TOP HEADER */}
+      <div style={{ height: '52px', background: '#0f1622', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px', flexShrink: 0 }}>
+        <button onClick={() => navigate('dashboard')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>←</button>
+        <input
+          value={workflowName}
+          onChange={e => setWorkflowName(e.target.value)}
+          style={{ background: 'none', border: 'none', color: '#f8fafc', fontSize: '15px', fontWeight: 'bold', outline: 'none', width: '220px' }}
+        />
+        <span style={{ fontSize: '11px', background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>● Active</span>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+            ↑ Upload
           </button>
-        </div>
-
-        <div>
-          <h4 style={{ fontSize: '11px', color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 8px 0' }}>Triggers</h4>
-          <div draggable onDragStart={(e) => onDragStart(e, 'TRIGGER', 'Consumer List', '#2563eb')} onClick={() => handleItemClick('TRIGGER', 'Consumer List', '#2563eb')} style={sidebarItemStyle}>📁 Consumer List</div>
-          <div draggable onDragStart={(e) => onDragStart(e, 'TRIGGER', 'Schedule', '#2563eb')} onClick={() => handleItemClick('TRIGGER', 'Schedule', '#2563eb')} style={sidebarItemStyle}>⏰ Schedule</div>
-        </div>
-
-        <div>
-          <h4 style={{ fontSize: '11px', color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 8px 0' }}>AI Nodes</h4>
-          <div draggable onDragStart={(e) => onDragStart(e, 'AI', 'Enrich Lead', '#a855f7')} onClick={() => handleItemClick('AI', 'Enrich Lead', '#a855f7')} style={sidebarItemStyle}>🔍 Enrich Lead</div>
-          <div draggable onDragStart={(e) => onDragStart(e, 'AI', 'Score Lead', '#a855f7')} onClick={() => handleItemClick('AI', 'Score Lead', '#a855f7')} style={sidebarItemStyle}>⭐ Score Lead</div>
-        </div>
-
-        <div>
-          <h4 style={{ fontSize: '11px', color: '#ea580c', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 8px 0', fontWeight: 'bold' }}>Filters & Logic</h4>
-          <div 
-            draggable 
-            onDragStart={(e) => onDragStart(e, 'LOGIC', 'If/Else Split', '#ea580c')} 
-            onClick={() => handleItemClick('LOGIC', 'If/Else Split', '#ea580c')} 
-            style={{ ...sidebarItemStyle, borderLeft: '3px solid #ea580c', background: 'rgba(234,88,12,0.05)', fontWeight: 'bold', color: '#fff' }}
+          <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+            ↓ Download
+          </button>
+          <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+            💾 Save
+          </button>
+          <button
+            onClick={handleRunWorkflow}
+            disabled={isRunning}
+            style={{ background: isRunning ? '#1e293b' : '#2563eb', border: 'none', color: 'white', padding: '6px 18px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            🔀 If/Else Split (Dual Port)
-          </div>
-        </div>
-
-        <div>
-          <h4 style={{ fontSize: '11px', color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 8px 0' }}>Actions</h4>
-          <div onClick={() => navigate('dialer')} style={{ ...sidebarItemStyle, color: '#10b981', fontWeight: 'bold', borderLeft: '3px solid #10b981' }}>📞 Voice Call (Twilio V1)</div>
-          <div draggable onDragStart={(e) => onDragStart(e, 'ACTION', 'Send Email', '#059669')} onClick={() => handleItemClick('ACTION', 'Send Email', '#059669')} style={sidebarItemStyle}>✉️ Send Email</div>
-          <div draggable onDragStart={(e) => onDragStart(e, 'ACTION', 'Webhook Out', '#0d9488')} onClick={() => handleItemClick('ACTION', 'Webhook Out', '#0d9488')} style={sidebarItemStyle}>🌐 Webhook Out</div>
-        </div>
-        
-        <div style={{ marginTop: 'auto', padding: '10px', background: '#1e293b', borderRadius: '6px', fontSize: '11px', color: '#94a3b8' }}>
-          💡 <strong>Tip:</strong> Click on any node or line and press <strong>Backspace</strong> / <strong>Delete</strong> on your keyboard to remove it!
+            {isRunning ? '⏳ Running...' : '▶ Run'}
+          </button>
         </div>
       </div>
 
-      {/* CANVAS SECTION */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div style={{ height: '60px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', padding: '0 20px', backgroundColor: '#0f1622' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Protien Lead Pipeline</span>
-            <span style={{ fontSize: '11px', background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>Custom Builder</span>
-          </div>
-          <button onClick={() => navigate('dialer')} style={{ background: '#2563eb', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto' }}>
-            ⚡ Run Auto-Dialer Panel
-          </button>
+      {/* MAIN AREA */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+        {/* LEFT SIDEBAR */}
+        <div style={{ width: '175px', background: '#0f1622', borderRight: '1px solid #1e293b', overflowY: 'auto', padding: '12px 0', flexShrink: 0 }}>
+          <div style={{ padding: '4px 12px 8px', fontSize: '10px', color: '#475569', fontWeight: 'bold', letterSpacing: '1px' }}>NODE LIBRARY</div>
+          {sidebarItems.map(section => (
+            <div key={section.section}>
+              <div style={{ padding: '8px 12px 4px', fontSize: '9px', color: '#475569', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{section.section}</div>
+              {section.items.map(item => (
+                <div
+                  key={item.label}
+                  draggable
+                  onDragStart={(e) => onDragStart(e, item.type, item.label)}
+                  onClick={() => handleItemClick(item.type, item.label)}
+                  style={{
+                    padding: '7px 12px', fontSize: '12px', color: '#cbd5e1', cursor: 'grab',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    transition: 'background 0.15s', userSelect: 'none',
+                    borderLeft: '2px solid transparent',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.borderLeftColor = item.color; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderLeftColor = 'transparent'; }}
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
 
-        {/* CORE CANVAS WORKSPACE */}
-        <div 
-          className="reactflow-wrapper" 
-          ref={reactFlowWrapper} 
-          style={{ flex: 1, height: 'calc(100vh - 60px)', backgroundColor: '#090d16' }}
-        >
+        {/* CANVAS */}
+        <div ref={reactFlowWrapper} style={{ flex: 1, position: 'relative' }}>
+          {/* Run Log */}
+          {runLog.length > 0 && (
+            <div style={{
+              position: 'absolute', bottom: '20px', left: '20px', zIndex: 10,
+              background: '#0f1622', border: '1px solid #1e293b', borderRadius: '8px',
+              padding: '12px', maxWidth: '350px', maxHeight: '200px', overflowY: 'auto'
+            }}>
+              <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>WORKFLOW LOG</div>
+              {runLog.map((log, i) => (
+                <div key={i} style={{ fontSize: '11px', color: log.color, marginBottom: '3px' }}>
+                  <span style={{ color: '#334155' }}>{log.time} </span>{log.msg}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {nodes.length === 0 && (
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              textAlign: 'center', color: '#334155', zIndex: 5, pointerEvents: 'none'
+            }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚡</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#475569' }}>Drag nodes from the left panel</div>
+              <div style={{ fontSize: '12px', color: '#334155', marginTop: '6px' }}>Start with "Upload List" trigger</div>
+            </div>
+          )}
+
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -230,32 +574,33 @@ export default function WorkflowPage({ navigate }) {
             onInit={setReactFlowInstance}
             onDrop={onDrop}
             onDragOver={(e) => e.preventDefault()}
-            deleteKeyCode={["Backspace", "Delete"]} // Enable delete shortcuts natively!
+            onNodeClick={onNodeClick}
+            deleteKeyCode={['Backspace', 'Delete']}
             fitView
           >
-            <Controls style={{ background: '#1e293b', border: 'none', color: '#fff' }} showInteractive={false} />
-            <MiniMap style={{ background: '#0f1622', border: '1px solid #1e293b' }} nodeColor={() => '#1e293b'} maskColor="rgba(0, 0, 0, 0.4)" />
+            <Controls style={{ background: '#1e293b', border: '1px solid #334155' }} showInteractive={false} />
+            <MiniMap style={{ background: '#0f1622', border: '1px solid #1e293b' }} nodeColor={() => '#1e293b'} maskColor="rgba(0,0,0,0.5)" />
             <Background color="#1e293b" gap={20} size={1} />
           </ReactFlow>
         </div>
-      </div>
 
+        {/* RIGHT CONFIG PANEL */}
+        {selectedNode ? (
+          <ConfigPanel
+            node={selectedNode}
+            onUpdate={handleConfigUpdate}
+            onClose={() => setSelectedNode(null)}
+          />
+        ) : (
+          <div style={{
+            width: '280px', background: '#0f1622', borderLeft: '1px solid #1e293b',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#334155', fontSize: '13px', textAlign: 'center', padding: '20px'
+          }}>
+            Click a node on the canvas to configure it
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-const sidebarItemStyle = {
-  background: '#1e293b',
-  padding: '8px 12px',
-  borderRadius: '6px',
-  fontSize: '12px',
-  marginBottom: '6px',
-  cursor: 'grab',
-  transition: 'all 0.2s ease',
-  color: '#cbd5e1',
-  userSelect: 'none',
-  borderLeft: '3px solid #475569',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-};

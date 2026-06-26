@@ -3,30 +3,58 @@ const cors = require('cors');
 const multer = require('multer');
 const csvParser = require('csv-parser');
 const fs = require('fs');
-const fetch = require('node-fetch');
+const mongoose = require('mongoose');
+const cookieParser = require('cookie-parser');
+const passport = require('passport');
+
 require('dotenv').config();
+require('./config/passport'); // ✅ Google strategy load
+
+const authRoutes = require('./routes/auth');
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: '*' })); // Allow all origins for testing, update to specific URL later
+app.use(cookieParser());
+app.use(passport.initialize()); // ✅ Passport middleware
+
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+}));
 
 const upload = multer({ dest: 'uploads/' });
 let leadsDb = [];
 
 // ==========================================
-// 1. AUTH ROUTES (Fixing 404 Error)
+// MONGODB CONNECTION
 // ==========================================
-app.post('/api/auth/login', (req, res) => {
-    const { email, password } = req.body;
-    console.log("Login attempt for:", email);
-    // Yahan apna DB logic add karo
-    res.json({ success: true, message: "Login successful!", token: "mock-jwt-token" });
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('✅ MongoDB Connected!'))
+    .catch((err) => console.error('❌ MongoDB Error:', err.message));
+
+// ==========================================
+// CALL RESULT SCHEMA
+// ==========================================
+const CallResultSchema = new mongoose.Schema({
+    callId:       { type: String, required: true, unique: true },
+    leadId:       { type: String },
+    customerName: { type: String },
+    phone:        { type: String },
+    status:       { type: String },
+    endedReason:  { type: String },
+    duration:     { type: Number },
+    transcript:   { type: String },
+    recordingUrl: { type: String },
+    summary:      { type: String },
+    createdAt:    { type: Date, default: Date.now }
 });
 
-app.post('/api/auth/google', (req, res) => {
-    console.log("Google Auth token received.");
-    res.json({ success: true, message: "Google Auth successful!", token: "mock-google-token" });
-});
+const CallResult = mongoose.model('CallResult', CallResultSchema);
+
+// ==========================================
+// 1. AUTH ROUTES
+// ==========================================
+app.use('/api/auth', authRoutes);
 
 // ==========================================
 // 2. VOICE CAMPAIGN ROUTES
@@ -44,43 +72,138 @@ app.post('/api/voice/upload', upload.single('file'), (req, res) => {
         .on('end', () => {
             leadsDb = results;
             fs.unlinkSync(req.file.path);
+            console.log('PARSED LEADS:', JSON.stringify(leadsDb));
             res.json({ success: true, message: "Parsed!", leads: leadsDb });
         });
 });
 
 app.post('/api/voice/run-campaign', async (req, res) => {
-    const { scriptTemplate, language } = req.body;
-    
-    // Asynchronous calls handling
+    const { scriptTemplate, language, systemPrompt } = req.body;
+    const triggerReport = [];
+
     for (const lead of leadsDb) {
+        const personalizedFirstMessage = scriptTemplate
+            ? scriptTemplate.replace(/\{\{firstName\}\}/g, lead.name)
+            : undefined;
+
         try {
-            await fetch('https://api.retellai.com/v2/create-phone-call', {
+            const vapiRes = await fetch('https://api.vapi.ai/call', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${process.env.RETELL_API_KEY}`,
+                    'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    from_number: process.env.TWILIO_PHONE_NUMBER,
-                    to_number: lead.phone,
-                    override_agent_id: process.env.RETELL_AGENT_ID,
-                    retell_llm_dynamic_variables: { 
-                        firstName: lead.name, 
-                        custom_script: scriptTemplate, 
-                        language 
+                    assistantId: process.env.VAPI_ASSISTANT_ID,
+                    phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+                    customer: {
+                        number: lead.phone,
+                        name: lead.name
+                    },
+                    assistantOverrides: {
+                        ...(personalizedFirstMessage ? { firstMessage: personalizedFirstMessage } : {}),
+                        ...(systemPrompt ? {
+                            model: {
+                                provider: "openai",
+                                model: "gpt-4o-mini",
+                                messages: [
+                                    { role: "system", content: systemPrompt }
+                                ]
+                            }
+                        } : {}),
+                        variableValues: {
+                            firstName: lead.name,
+                            language: language || 'Hindi'
+                        }
                     }
                 })
             });
-            lead.status = 'called';
-        } catch (err) { 
-            console.error("Call error:", err);
-            lead.status = 'failed'; 
+
+            const data = await vapiRes.json();
+            console.log('VAPI RESPONSE for', lead.phone, ':', vapiRes.status, JSON.stringify(data));
+
+            if (!vapiRes.ok) {
+                throw new Error(data.message || JSON.stringify(data));
+            }
+
+            lead.status = 'queued';
+            lead.vapiCallId = data.id;
+            triggerReport.push({ leadId: lead.id, phone: lead.phone, status: 'queued', callId: data.id });
+        } catch (err) {
+            console.error("Call error:", err.message);
+            lead.status = 'failed';
+            triggerReport.push({ leadId: lead.id, phone: lead.phone, status: 'failed', error: err.message });
         }
     }
-    res.json({ success: true, message: "Campaign fired!" });
+    res.json({ success: true, message: "Campaign fired!", report: triggerReport });
 });
 
 app.get('/api/voice/leads', (req, res) => res.json({ success: true, leads: leadsDb }));
+
+// ==========================================
+// 3. VAPI WEBHOOK
+// ==========================================
+app.post('/api/voice/vapi-webhook', async (req, res) => {
+    const message = req.body.message;
+    if (!message) return res.sendStatus(200);
+
+    const callId = message.call?.id;
+
+    if (message.type === 'status-update') {
+        const status = message.status;
+        const lead = leadsDb.find(l => l.vapiCallId === callId);
+        if (lead) {
+            if (['failed', 'busy', 'no-answer'].includes(status)) {
+                lead.status = 'failed';
+            } else {
+                lead.status = status || lead.status;
+            }
+        }
+    }
+
+    if (message.type === 'end-of-call-report') {
+        const lead = leadsDb.find(l => l.vapiCallId === callId);
+        if (lead) lead.status = 'called';
+
+        try {
+            await CallResult.findOneAndUpdate(
+                { callId },
+                {
+                    callId,
+                    leadId:       lead?.id,
+                    customerName: message.call?.customer?.name,
+                    phone:        message.call?.customer?.number,
+                    status:       'called',
+                    endedReason:  message.endedReason,
+                    duration:     message.call?.endedAt
+                                    ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
+                                    : null,
+                    transcript:   message.transcript,
+                    recordingUrl: message.recordingUrl,
+                    summary:      message.summary,
+                },
+                { upsert: true, new: true }
+            );
+            console.log('✅ Call result saved to MongoDB for callId:', callId);
+        } catch (err) {
+            console.error('❌ MongoDB save error:', err.message);
+        }
+    }
+
+    res.sendStatus(200);
+});
+
+// ==========================================
+// 4. RESULTS FETCH ROUTE
+// ==========================================
+app.get('/api/voice/results', async (req, res) => {
+    try {
+        const results = await CallResult.find().sort({ createdAt: -1 });
+        res.json({ success: true, results });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 const PORT = 5001;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));

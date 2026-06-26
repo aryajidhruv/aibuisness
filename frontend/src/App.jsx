@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage'
 import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
@@ -6,22 +6,60 @@ import CampaignPage from './pages/CampaignPage'
 import ResultsPage from './pages/ResultsPage'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
-
-// 🌟 DIALER PAGE AUR WORKFLOW PAGE DONO IMPORT KAR LIYE HAIN BHAI
-import DialerPage from './pages/DialerPage' 
-import WorkflowPage from './pages/WorkflowPage' 
-
+import DialerPage from './pages/DialerPage'
+import WorkflowPage from './pages/WorkflowPage'
 import React from 'react'
+import axios from 'axios'
+
+const API_BASE = 'http://localhost:5001'
 
 export default function App() {
-  // 💡 TIP: Agar screen test karni ho toh 'landing' ko badal kar 'workflow' ya 'dialer' kar dena temporary!
   const [page, setPage] = useState('landing')
   const [campaign, setCampaign] = useState(null)
+  const [authChecked, setAuthChecked] = useState(false) // ✅ pehle check karo, phir render karo
 
   const navigate = (to, data) => {
     if (data) setCampaign(data)
     setPage(to)
     window.scrollTo(0, 0)
+  }
+
+  // ✅ App load hote hi cookie check karo
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/api/auth/me`, {
+          withCredentials: true // cookie automatically jaayegi
+        })
+        if (res.data.success) {
+          // Cookie valid hai — dashboard pe bhejo
+          setPage('dashboard')
+        }
+      } catch (err) {
+        // Cookie nahi hai ya expire ho gayi — landing page pe rehne do
+        console.log('Not logged in, showing landing page')
+      } finally {
+        setAuthChecked(true) // check complete
+      }
+    }
+    checkAuth()
+  }, [])
+
+  // ✅ Jab tak auth check nahi hua, blank screen dikho (flicker avoid)
+  if (!authChecked) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        background: '#080C14', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: '#64748b',
+        fontSize: '14px'
+      }}>
+        Loading...
+      </div>
+    )
   }
 
   return (
@@ -39,19 +77,8 @@ export default function App() {
       )}
       {page === 'login' && <Login navigate={navigate} />}
       {page === 'signup' && <Signup navigate={navigate} />}
-
-      {/* =========================================================
-          🌟 Twilio Voice Dialer Page System
-          Jab state 'dialer' hogi, toh humara ye component load hoga.
-      ========================================================= */}
       {page === 'dialer' && <DialerPage navigate={navigate} />}
-
-      {/* =========================================================
-          🌟 Workflow Builder Page Section
-          Jab page state "workflow" hogi tab Workflow Builder open hoga.
-      ========================================================= */}
       {page === 'workflow' && <WorkflowPage navigate={navigate} />}
-     
     </>
   )
 }

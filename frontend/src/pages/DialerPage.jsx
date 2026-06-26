@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -8,6 +9,7 @@ export default function DialerPage({ navigate }) {
   const [file, setFile] = useState(null);
   const [leads, setLeads] = useState([]);
   const [scriptTemplate, setScriptTemplate] = useState('Hi {{firstName}}, this is a quick validation call from CallIQ setup framework.');
+  const [systemPrompt, setSystemPrompt] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isCampaignRunning, setIsCampaignRunning] = useState(false);
 
@@ -71,7 +73,7 @@ export default function DialerPage({ navigate }) {
 
     setIsCampaignRunning(true);
     try {
-      const response = await axios.post(`${API_BASE}/run-campaign`, { scriptTemplate });
+      const response = await axios.post(`${API_BASE}/run-campaign`, { scriptTemplate, systemPrompt });
       if (response.data.success) {
         alert("Campaign successfully fired up! Sabhi numbers par line se calls jaa rahi hain.");
       }
@@ -117,6 +119,21 @@ export default function DialerPage({ navigate }) {
         />
         <p style={{ fontSize: '13px', color: '#38bdf8', marginTop: '5px' }}>
           Use <strong>{"{{firstName}}"}</strong> dynamic tags internally. System calls dynamically pick row contexts on execution.
+        </p>
+      </div>
+
+      {/* SECTION B.5: SYSTEM PROMPT - poori conversation ka behavior control karega */}
+      <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
+        <h3>Step 2.5: AI Conversation Instructions (System Prompt)</h3>
+        <textarea
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          rows="6"
+          placeholder="Yahan likho AI kaise behave kare poori call mein - jaise: 'Tu ek sales rep hai. Lead ki zaroorat poocho, budget poocho, aur agar interested ho toh demo book karo.' Khali rakhne par Vapi dashboard ka default System Prompt use hoga."
+          style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #475569', color: 'white', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
+        />
+        <p style={{ fontSize: '13px', color: '#fbbf24', marginTop: '5px' }}>
+          ⚠️ Yeh poori conversation ka behavior control karta hai (sirf opening line nahi). Khali chhodne par Vapi assistant ka pehle se set System Prompt chalega.
         </p>
       </div>
 

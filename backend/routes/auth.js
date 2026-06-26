@@ -2,14 +2,13 @@
 const express = require('express');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs'); // 🔥 FIXED: Password securely hash karne ke liye import kiya
+const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
-const User = require('../Models/user'); // Match exact case (User.js)
+const User = require('../Models/user');
 
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Helper function JWT token generate karne ke liye (Code repetitive na ho)
 const generateTokenAndSetCookie = (user, res) => {
   const authToken = jwt.sign(
     { id: user._id },
@@ -28,28 +27,24 @@ const generateTokenAndSetCookie = (user, res) => {
 };
 
 // -------------------------------------------------------------------------
-// 🔥 NEW FIXED ROUTE: Normal Email + Password Signup (`POST /api/auth/register`)
+// Email + Password Signup
 // -------------------------------------------------------------------------
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // 1. Basic validation check
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // 2. Check karo user pehle se exist toh nahi karta
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already registered. Please log in.' });
     }
 
-    // 3. Password ko hash karo
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 4. Naya user MongoDB Atlas par create karo
     const newUser = await User.create({
       name,
       email: email.toLowerCase(),
@@ -58,10 +53,8 @@ router.post('/register', async (req, res) => {
 
     console.log("Naya Email User Atlas cloud par save ho gaya! 🎉:", newUser.email);
 
-    // 5. Token generate karke cookie set karo
     const authToken = generateTokenAndSetCookie(newUser, res);
 
-    // 6. Response pack karke bhejo
     res.status(201).json({
       token: authToken,
       user: {
@@ -78,16 +71,17 @@ router.post('/register', async (req, res) => {
 });
 
 // -------------------------------------------------------------------------
-// Route 0: Frontend Google Custom SDK Login/Signup button se aaya token (`POST /api/auth/google`)
+// Google Login — Frontend SDK se aaya token
 // -------------------------------------------------------------------------
 router.post('/google', async (req, res) => {
   try {
-    const { token } = req.body; 
+    const { token } = req.body;
 
     if (!token) {
       return res.status(400).json({ message: 'Google token is required' });
     }
 
+    // ✅ Token verify karo
     const ticket = await googleClient.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -98,7 +92,6 @@ router.post('/google', async (req, res) => {
 
     let user = await User.findOne({ googleId });
 
-    // SIGNUP FLOW: Agar user nahi mila database mein, toh naya user banao
     if (!user) {
       user = await User.create({
         googleId,
@@ -108,13 +101,12 @@ router.post('/google', async (req, res) => {
         accessToken: req.body.accessToken || null,
         refreshToken: req.body.refreshToken || null
       });
-      console.log("Naya user successfully register ho gaya (Signup):", user.email);
+      console.log("✅ Naya user registered (Signup):", user.email);
     } else {
-      // LOGIN FLOW: Existing user ke tokens update karo
       if (req.body.accessToken) user.accessToken = req.body.accessToken;
       if (req.body.refreshToken) user.refreshToken = req.body.refreshToken;
       await user.save();
-      console.log("Purana user successfully login ho gaya (Login):", user.email);
+      console.log("✅ Purana user logged in:", user.email);
     }
 
     const authToken = generateTokenAndSetCookie(user, res);
@@ -128,37 +120,42 @@ router.post('/google', async (req, res) => {
         avatar: user.avatar,
       },
     });
+
   } catch (error) {
-    console.error('Google token verification failed:', error);
-    res.status(401).json({ message: 'Invalid Google token' });
+    // ✅ Full error message print hoga terminal mein
+    console.error('❌ Google token verification failed:', error.message);
+    res.status(401).json({ 
+      message: 'Invalid Google token', 
+      detail: error.message  // ✅ Frontend pe bhi aayega
+    });
   }
 });
 
 // -------------------------------------------------------------------------
-// Route 1: Direct Link Redirect Auth (`GET /api/auth/google`)
+// Passport Google Redirect
 // -------------------------------------------------------------------------
 router.get(
   '/google',
-  passport.authenticate('google', { 
+  passport.authenticate('google', {
     scope: [
-      'profile', 
-      'email', 
+      'profile',
+      'email',
       'https://www.googleapis.com/auth/gmail.readonly'
     ],
-    accessType: 'offline', 
+    accessType: 'offline',
     prompt: 'select_account'
   })
 );
 
 // -------------------------------------------------------------------------
-// Route 2: Google Callback Handler (`GET /api/auth/google/callback`)
+// Google Callback
 // -------------------------------------------------------------------------
 router.get(
   '/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/login' }),
   async (req, res) => {
     try {
-      const user = req.user; 
+      const user = req.user;
 
       if (!user) {
         return res.redirect(`${process.env.CLIENT_URL}/dashboard`);
@@ -175,14 +172,40 @@ router.get(
       res.redirect(`${process.env.CLIENT_URL}/dashboard`);
 
     } catch (error) {
-      console.error("Callback mein dikkat aayi:", error);
+      console.error("❌ Callback mein dikkat aayi:", error.message);
       res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
     }
   }
 );
 
 // -------------------------------------------------------------------------
-// Route 3: Logout Endpoint
+// Route: Check if user is logged in via cookie
+// -------------------------------------------------------------------------
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ message: 'Not authenticated' });
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
+router.get('/me', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// -------------------------------------------------------------------------
+// Logout
 // -------------------------------------------------------------------------
 router.get('/logout', (req, res) => {
   res.clearCookie('token');
