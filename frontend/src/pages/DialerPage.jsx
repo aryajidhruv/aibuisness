@@ -1,9 +1,27 @@
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// Backend API URL Base setup (Port 5001 se exact match hai)
 const API_BASE = 'http://localhost:5001/api/voice';
+
+const EASE = [0.16, 1, 0.3, 1];
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } },
+};
+
+const staggerParent = (stagger = 0.08, delay = 0) => ({
+  hidden: {},
+  show: { transition: { staggerChildren: stagger, delayChildren: delay } },
+});
+
+const STATUS_STYLE = {
+  called:  'text-green-400 bg-green-400/10',
+  queued:  'text-amber-400 bg-amber-400/10',
+  failed:  'text-red-400 bg-red-400/10',
+  pending: 'text-slate-400 bg-slate-400/10',
+};
 
 export default function DialerPage({ navigate }) {
   const [file, setFile] = useState(null);
@@ -13,7 +31,6 @@ export default function DialerPage({ navigate }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isCampaignRunning, setIsCampaignRunning] = useState(false);
 
-  // 1. Leads real-time sync polling mechanism setup
   const fetchLeadsStatus = async () => {
     try {
       const response = await axios.get(`${API_BASE}/leads`);
@@ -25,23 +42,18 @@ export default function DialerPage({ navigate }) {
     }
   };
 
-  // Har 3 seconds mein status backend se check karega jab call chal rahi hogi
   useEffect(() => {
-    fetchLeadsStatus(); // Initial check
-    
+    fetchLeadsStatus();
     const interval = setInterval(() => {
       fetchLeadsStatus();
     }, 3000);
-
     return () => clearInterval(interval);
   }, []);
 
-  // 2. CSV File selected state tracking
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
   };
 
-  // 3. Backend handler to trigger bulk parser processing logic
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file) return alert("Bhai, pehle koi acchi si CSV file select toh karo!");
@@ -66,7 +78,6 @@ export default function DialerPage({ navigate }) {
     }
   };
 
-  // 4. Trigger dialer campaign across dynamic lists
   const handleRunCampaign = async () => {
     if (leads.length === 0) return alert("List completely khali hai! Pehle CSV populate karo.");
     if (!scriptTemplate.trim()) return alert("Bhai, script text area khali nahi rakh sakte!");
@@ -85,109 +96,172 @@ export default function DialerPage({ navigate }) {
   };
 
   return (
-    <div style={{ padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh' }}>
-      {/* Back Button to main dashboard */}
-      <button 
-        onClick={() => navigate('dashboard')} 
-        style={{ background: '#475569', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', marginBottom: '15px' }}
-      >
-        ← Back to Dashboard
-      </button>
+    <div className="min-h-screen bg-[#080C14] text-white p-6 md:p-8" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div className="max-w-5xl mx-auto">
 
-      <h1 style={{ borderBottom: '2px solid #334155', paddingBottom: '10px' }}>📞 CallIQ Auto-Dialer Platform Engine v1</h1>
-      
-      {/* SECTION A: CSV FILE CONTROLLER */}
-      <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-        <h3>Step 1: Upload Contact CSV Dataset</h3>
-        <form onSubmit={handleUpload} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <input type="file" accept=".csv" onChange={handleFileChange} style={{ color: '#94a3b8' }} />
-          <button type="submit" disabled={isUploading} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>
-            {isUploading ? 'Uploading & Parsing...' : 'Parse File & Add List'}
-          </button>
-        </form>
-        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>* Tip: File must contain headers like: <strong>name, phone</strong></p>
-      </div>
-
-      {/* SECTION B: SCRIPT ENGINE EDIT AREA */}
-      <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-        <h3>Step 2: Script Speech Engine Customizer</h3>
-        <textarea
-          value={scriptTemplate}
-          onChange={(e) => setScriptTemplate(e.target.value)}
-          rows="4"
-          style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #475569', color: 'white', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
-        />
-        <p style={{ fontSize: '13px', color: '#38bdf8', marginTop: '5px' }}>
-          Use <strong>{"{{firstName}}"}</strong> dynamic tags internally. System calls dynamically pick row contexts on execution.
-        </p>
-      </div>
-
-      {/* SECTION B.5: SYSTEM PROMPT - poori conversation ka behavior control karega */}
-      <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-        <h3>Step 2.5: AI Conversation Instructions (System Prompt)</h3>
-        <textarea
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          rows="6"
-          placeholder="Yahan likho AI kaise behave kare poori call mein - jaise: 'Tu ek sales rep hai. Lead ki zaroorat poocho, budget poocho, aur agar interested ho toh demo book karo.' Khali rakhne par Vapi dashboard ka default System Prompt use hoga."
-          style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #475569', color: 'white', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
-        />
-        <p style={{ fontSize: '13px', color: '#fbbf24', marginTop: '5px' }}>
-          ⚠️ Yeh poori conversation ka behavior control karta hai (sirf opening line nahi). Khali chhodne par Vapi assistant ka pehle se set System Prompt chalega.
-        </p>
-      </div>
-
-      {/* ACTION ENGINE TOGGLE TRIGGER */}
-      <div style={{ margin: '25px 0' }}>
-        <button
-          onClick={handleRunCampaign}
-          disabled={isCampaignRunning || leads.length === 0}
-          style={{ width: '100%', background: '#10b981', color: 'white', border: 'none', padding: '15px', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="flex items-center justify-between mb-8 flex-wrap gap-4"
         >
-          {isCampaignRunning ? 'Dialer Engine System Live Running...' : '🚀 Fire Outbound Dialer Script List'}
-        </button>
-      </div>
+          <div>
+            <button
+              onClick={() => navigate('dashboard')}
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors mb-2 block"
+            >
+              ← Back to dashboard
+            </button>
+            <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+              📞 CallIQ Auto-Dialer
+            </h1>
+            <p className="text-slate-500 text-sm mt-0.5">Upload contacts, script the call, fire the campaign.</p>
+          </div>
+        </motion.div>
 
-      {/* SECTION C: LIVE CONTEXT POLLING TRACKER DASHBOARD VIEW */}
-      <div style={{ background: '#1e293b', padding: '20px', borderRadius: '8px' }}>
-        <h3>Live Activity Tracking Monitor Panel</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '15px', fontSize: '14px' }}>
-          <thead>
-            <tr style={{ background: '#334155', textAlign: 'left' }}>
-              <th style={{ padding: '12px' }}>Lead Internal ID</th>
-              <th style={{ padding: '12px' }}>Customer Name</th>
-              <th style={{ padding: '12px' }}>Assigned Phone Number</th>
-              <th style={{ padding: '12px', textAlign: 'center' }}>Live Outbound State Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leads.length === 0 ? (
-              <tr>
-                <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>Bhai koi data nahi mila, pehle top side se CSV compile karo!</td>
-              </tr>
-            ) : (
-              leads.map((lead) => (
-                <tr key={lead.id} style={{ borderBottom: '1px solid #334155' }}>
-                  <td style={{ padding: '12px', color: '#94a3b8' }}>{lead.id}</td>
-                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{lead.name}</td>
-                  <td style={{ padding: '12px' }}>{lead.phone}</td>
-                  <td style={{ padding: '12px', textAlign: 'center' }}>
-                    <span style={{
-                      padding: '4px 10px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      background: lead.status === 'called' ? '#065f46' : lead.status === 'failed' ? '#991b1b' : lead.status === 'queued' ? '#854d0e' : '#475569',
-                      color: 'white'
-                    }}>
-                      {lead.status.toUpperCase()}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          className="bg-[#0F1623] border border-white/5 rounded-2xl p-6 mb-5"
+        >
+          <h3 className="font-semibold mb-1" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Step 1 · Upload Contact CSV</h3>
+          <p className="text-xs text-slate-500 mb-4">File must contain headers like <strong className="text-slate-300">name, phone</strong></p>
+          <form onSubmit={handleUpload} className="flex items-center gap-3 flex-wrap">
+            <label className="text-sm text-slate-400 bg-[#080C14] border border-white/10 rounded-xl px-4 py-2.5 cursor-pointer hover:border-white/20 transition-colors">
+              {file ? file.name : 'Choose CSV file'}
+              <input type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
+            </label>
+            <motion.button
+              type="submit"
+              disabled={isUploading}
+              whileHover={{ scale: isUploading ? 1 : 1.03 }}
+              whileTap={{ scale: isUploading ? 1 : 0.97 }}
+              className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
+            >
+              {isUploading ? 'Parsing...' : 'Parse File & Add List'}
+            </motion.button>
+          </form>
+        </motion.div>
+
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          transition={{ delay: 0.05 }}
+          className="bg-[#0F1623] border border-white/5 rounded-2xl p-6 mb-5"
+        >
+          <h3 className="font-semibold mb-1" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Step 2 · Opening Line (First Message)</h3>
+          <p className="text-xs text-slate-500 mb-3">This is the AI's opening line — said before the conversation begins.</p>
+          <textarea
+            value={scriptTemplate}
+            onChange={(e) => setScriptTemplate(e.target.value)}
+            rows="3"
+            className="w-full bg-[#080C14] border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors resize-none"
+          />
+          <p className="text-xs text-blue-400 mt-2">
+            Use <strong>{"{{firstName}}"}</strong> — it's swapped per-row automatically when the campaign fires.
+          </p>
+        </motion.div>
+
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          transition={{ delay: 0.1 }}
+          className="bg-[#0F1623] border border-white/5 rounded-2xl p-6 mb-5"
+        >
+          <h3 className="font-semibold mb-1" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Step 2.5 · AI Conversation Instructions</h3>
+          <p className="text-xs text-slate-500 mb-3">Controls how the AI behaves for the rest of the call — not just the opening line.</p>
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            rows="5"
+            placeholder="e.g. You're a sales rep. Ask about their needs, budget, and book a demo if they're interested. Leave blank to use the assistant's default prompt from the Vapi dashboard."
+            className="w-full bg-[#080C14] border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-colors resize-none"
+          />
+          <p className="text-xs text-amber-400 mt-2">
+            ⚠️ Leave empty to keep the Vapi assistant's existing System Prompt.
+          </p>
+        </motion.div>
+
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          transition={{ delay: 0.15 }}
+          className="mb-6"
+        >
+          <motion.button
+            onClick={handleRunCampaign}
+            disabled={isCampaignRunning || leads.length === 0}
+            whileHover={{ scale: isCampaignRunning || leads.length === 0 ? 1 : 1.01 }}
+            whileTap={{ scale: isCampaignRunning || leads.length === 0 ? 1 : 0.98 }}
+            className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-2xl transition-colors"
+          >
+            {isCampaignRunning ? 'Dialer running…' : '🚀 Fire Outbound Campaign'}
+          </motion.button>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE, delay: 0.2 }}
+          className="bg-[#0F1623] border border-white/5 rounded-2xl overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+            <h2 className="font-semibold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Live Activity</h2>
+            <span className="text-xs text-slate-500">{leads.length} lead{leads.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {leads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-600 text-sm gap-1">
+              <p>No leads yet.</p>
+              <p className="text-xs">Upload a CSV above to get started.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    {['ID', 'Name', 'Phone', 'Status'].map(h => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <motion.tbody variants={staggerParent(0.04)} initial="hidden" animate="show">
+                  <AnimatePresence>
+                    {leads.map((lead) => (
+                      <motion.tr
+                        key={lead.id}
+                        variants={fadeUp}
+                        layout
+                        className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.01] transition-colors"
+                      >
+                        <td className="px-6 py-4 text-slate-500 font-mono text-xs">{lead.id}</td>
+                        <td className="px-6 py-4 font-medium text-white">{lead.name}</td>
+                        <td className="px-6 py-4 text-slate-400 font-mono text-xs">{lead.phone}</td>
+                        <td className="px-6 py-4">
+                          <motion.span
+                            key={lead.status}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.2 }}
+                            className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLE[lead.status] || 'text-slate-400 bg-slate-400/10'}`}
+                          >
+                            {lead.status.toUpperCase()}
+                          </motion.span>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </motion.tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
       </div>
     </div>
   );

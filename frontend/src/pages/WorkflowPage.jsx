@@ -16,10 +16,6 @@ import axios from 'axios';
 
 const API_BASE = 'http://localhost:5001';
 
-// ============================================================
-// CUSTOM NODE COMPONENTS
-// ============================================================
-
 function TriggerNode({ data, selected }) {
   return (
     <div style={{
@@ -79,10 +75,8 @@ function IfElseNode({ data, selected }) {
         <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff', marginBottom: '4px' }}>If/Else</div>
         <div style={{ fontSize: '11px', color: '#64748b' }}>minScore: {data.config?.minScore || 70}</div>
       </div>
-      {/* YES handle - top right */}
       <div style={{ position: 'absolute', right: '-30px', top: '35%', fontSize: '9px', color: '#10b981', fontWeight: 'bold' }}>yes</div>
       <Handle type="source" position={Position.Right} id="yes" style={{ background: '#10b981', width: '10px', height: '10px', right: '-6px', top: '35%' }} />
-      {/* NO handle - bottom right */}
       <div style={{ position: 'absolute', right: '-24px', top: '65%', fontSize: '9px', color: '#ef4444', fontWeight: 'bold' }}>no</div>
       <Handle type="source" position={Position.Right} id="no" style={{ background: '#ef4444', width: '10px', height: '10px', right: '-6px', top: '65%' }} />
     </div>
@@ -128,9 +122,6 @@ function EnrichLeadNode({ data, selected }) {
   );
 }
 
-// ============================================================
-// CONFIG PANEL — Right side mein node click pe dikhega
-// ============================================================
 function ConfigPanel({ node, onUpdate, onClose }) {
   const [config, setConfig] = useState(node.data.config || {});
 
@@ -140,24 +131,24 @@ function ConfigPanel({ node, onUpdate, onClose }) {
   };
 
   const inputStyle = {
-    width: '100%', padding: '8px 10px', background: '#0f1622',
-    border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc',
+    width: '100%', padding: '8px 10px', background: '#06080F',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#f8fafc',
     fontSize: '12px', boxSizing: 'border-box', marginTop: '4px'
   };
 
-  const labelStyle = { fontSize: '11px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' };
+  const labelStyle = { fontSize: '11px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' };
 
   return (
     <div style={{
-      width: '280px', background: '#0f1622', borderLeft: '1px solid #1e293b',
+      width: '280px', background: 'rgba(6,8,15,0.85)', backdropFilter: 'blur(20px)',
+      borderLeft: '1px solid rgba(255,255,255,0.05)',
       padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Configure Node</span>
+        <span style={{ fontWeight: '900', fontSize: '14px', fontFamily: 'Space Grotesk, sans-serif' }}>Configure Node</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>✕</button>
       </div>
 
-      {/* TRIGGER - CSV Upload */}
       {node.data.nodeType === 'trigger-csv' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
@@ -176,7 +167,6 @@ function ConfigPanel({ node, onUpdate, onClose }) {
         </div>
       )}
 
-      {/* VOICE CALL */}
       {node.data.nodeType === 'action-voice' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
@@ -200,7 +190,6 @@ function ConfigPanel({ node, onUpdate, onClose }) {
         </div>
       )}
 
-      {/* IF/ELSE */}
       {node.data.nodeType === 'logic-ifelse' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
@@ -225,14 +214,13 @@ function ConfigPanel({ node, onUpdate, onClose }) {
                 value={config.minDuration || ''} onChange={e => setConfig({ ...config, minDuration: e.target.value })} />
             </div>
           )}
-          <div style={{ fontSize: '11px', color: '#64748b', background: '#1e293b', padding: '8px', borderRadius: '6px' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px', borderRadius: '8px' }}>
             <div style={{ color: '#10b981', marginBottom: '4px' }}>✅ YES → Interested leads</div>
             <div style={{ color: '#ef4444' }}>❌ NO → Not interested leads</div>
           </div>
         </div>
       )}
 
-      {/* WEBHOOK */}
       {node.data.nodeType === 'action-webhook' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
@@ -257,7 +245,6 @@ function ConfigPanel({ node, onUpdate, onClose }) {
         </div>
       )}
 
-      {/* ENRICH LEAD */}
       {node.data.nodeType === 'ai-enrich' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ fontSize: '12px', color: '#94a3b8' }}>AI will automatically enrich lead data before the call — adding context, company info, and personalization hints.</div>
@@ -265,8 +252,8 @@ function ConfigPanel({ node, onUpdate, onClose }) {
       )}
 
       <button onClick={handleSave} style={{
-        background: '#2563eb', border: 'none', color: 'white', padding: '10px',
-        borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', marginTop: 'auto'
+        background: '#ffffff', border: 'none', color: '#000', padding: '10px',
+        borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', marginTop: 'auto'
       }}>
         💾 Save Config
       </button>
@@ -274,9 +261,6 @@ function ConfigPanel({ node, onUpdate, onClose }) {
   );
 }
 
-// ============================================================
-// MAIN WORKFLOW PAGE
-// ============================================================
 const initialNodes = [];
 const initialEdges = [];
 
@@ -358,7 +342,6 @@ export default function WorkflowPage({ navigate }) {
     setSelectedNode(null);
   };
 
-  // ✅ WORKFLOW EXECUTION ENGINE
   const handleRunWorkflow = async () => {
     setIsRunning(true);
     setRunLog([]);
@@ -368,7 +351,6 @@ export default function WorkflowPage({ navigate }) {
     };
 
     try {
-      // 1. CSV trigger node dhundho
       const triggerNode = nodes.find(n => n.data.nodeType === 'trigger-csv');
       if (!triggerNode?.data.config?.file) {
         log('❌ CSV file upload nahi ki trigger node mein!', '#ef4444'); return;
@@ -381,7 +363,6 @@ export default function WorkflowPage({ navigate }) {
       const leads = uploadRes.data.leads;
       log(`✅ ${leads.length} leads parsed!`, '#10b981');
 
-      // 2. Voice call node dhundho
       const voiceNode = nodes.find(n => n.data.nodeType === 'action-voice');
       if (!voiceNode) { log('❌ Voice Call node nahi mila!', '#ef4444'); return; }
 
@@ -393,7 +374,6 @@ export default function WorkflowPage({ navigate }) {
       });
       log(`✅ Campaign fired! ${leads.length} calls queued.`, '#10b981');
 
-      // 3. If/Else node check
       const ifElseNode = nodes.find(n => n.data.nodeType === 'logic-ifelse');
       if (ifElseNode) {
         log('⏳ Call results ka wait kar rahe hain (30 sec)...', '#f59e0b');
@@ -403,11 +383,9 @@ export default function WorkflowPage({ navigate }) {
         const results = resultsRes.data.results;
         log(`📊 ${results.length} call results mile`, '#60a5fa');
 
-        // 4. Webhook node
         const webhookNode = nodes.find(n => n.data.nodeType === 'action-webhook');
         const condition = ifElseNode.data.config?.condition || 'sentiment';
 
-        // YES path leads filter karo
         const yesLeads = results.filter(r => {
           if (condition === 'sentiment') return r.status === 'called';
           if (condition === 'score') return (r.score || 0) >= (ifElseNode.data.config?.minScore || 70);
@@ -418,7 +396,6 @@ export default function WorkflowPage({ navigate }) {
         const noLeads = results.filter(r => !yesLeads.includes(r));
         log(`✅ YES path: ${yesLeads.length} leads | ❌ NO path: ${noLeads.length} leads`, '#10b981');
 
-        // YES edge se connected webhook hit karo
         const yesEdge = edges.find(e => e.source === ifElseNode.id && e.sourceHandle === 'yes');
         if (yesEdge && webhookNode?.data.config?.url) {
           try {
@@ -470,44 +447,64 @@ export default function WorkflowPage({ navigate }) {
   ];
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#090d16', color: '#f8fafc', fontFamily: 'sans-serif', overflow: 'hidden', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#090d16', color: '#f8fafc', fontFamily: 'Inter, sans-serif', overflow: 'hidden', flexDirection: 'column' }}>
 
-      {/* TOP HEADER */}
-      <div style={{ height: '52px', background: '#0f1622', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px', flexShrink: 0 }}>
+      <div style={{
+        height: '56px', background: 'rgba(6,8,15,0.85)', backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center',
+        padding: '0 16px', gap: '12px', flexShrink: 0
+      }}>
         <button onClick={() => navigate('dashboard')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>←</button>
+        <span style={{ fontWeight: '900', fontFamily: 'Space Grotesk, sans-serif', fontSize: '15px' }}>
+          Call<span style={{ color: '#60a5fa' }}>IQ</span>
+        </span>
+        <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)' }} />
         <input
           value={workflowName}
           onChange={e => setWorkflowName(e.target.value)}
-          style={{ background: 'none', border: 'none', color: '#f8fafc', fontSize: '15px', fontWeight: 'bold', outline: 'none', width: '220px' }}
+          style={{ background: 'none', border: 'none', color: '#f8fafc', fontSize: '14px', fontWeight: '600', outline: 'none', width: '220px', fontFamily: 'Space Grotesk, sans-serif' }}
         />
-        <span style={{ fontSize: '11px', background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>● Active</span>
+        <span style={{
+          fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+          color: '#94a3b8', padding: '3px 10px', borderRadius: '999px', fontWeight: '700',
+          textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px'
+        }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+          Active
+        </span>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
             ↑ Upload
           </button>
-          <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
             ↓ Download
           </button>
-          <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+          <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
             💾 Save
           </button>
           <button
             onClick={handleRunWorkflow}
             disabled={isRunning}
-            style={{ background: isRunning ? '#1e293b' : '#2563eb', border: 'none', color: 'white', padding: '6px 18px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{
+              background: isRunning ? 'rgba(255,255,255,0.05)' : '#ffffff',
+              border: 'none', color: isRunning ? '#64748b' : '#000', padding: '7px 18px',
+              borderRadius: '8px', cursor: isRunning ? 'default' : 'pointer', fontSize: '13px',
+              fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px'
+            }}
           >
             {isRunning ? '⏳ Running...' : '▶ Run'}
           </button>
         </div>
       </div>
 
-      {/* MAIN AREA */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* LEFT SIDEBAR */}
-        <div style={{ width: '175px', background: '#0f1622', borderRight: '1px solid #1e293b', overflowY: 'auto', padding: '12px 0', flexShrink: 0 }}>
-          <div style={{ padding: '4px 12px 8px', fontSize: '10px', color: '#475569', fontWeight: 'bold', letterSpacing: '1px' }}>NODE LIBRARY</div>
+        <div style={{
+          width: '175px', background: 'rgba(6,8,15,0.85)', backdropFilter: 'blur(20px)',
+          borderRight: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto', padding: '12px 0', flexShrink: 0
+        }}>
+          <div style={{ padding: '4px 12px 8px', fontSize: '10px', color: '#475569', fontWeight: '700', letterSpacing: '0.1em', fontFamily: 'Space Grotesk, sans-serif' }}>NODE LIBRARY</div>
           {sidebarItems.map(section => (
             <div key={section.section}>
               <div style={{ padding: '8px 12px 4px', fontSize: '9px', color: '#475569', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{section.section}</div>
@@ -523,7 +520,7 @@ export default function WorkflowPage({ navigate }) {
                     transition: 'background 0.15s', userSelect: 'none',
                     borderLeft: '2px solid transparent',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.borderLeftColor = item.color; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderLeftColor = item.color; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderLeftColor = 'transparent'; }}
                 >
                   <span>{item.icon}</span>
@@ -534,13 +531,11 @@ export default function WorkflowPage({ navigate }) {
           ))}
         </div>
 
-        {/* CANVAS */}
         <div ref={reactFlowWrapper} style={{ flex: 1, position: 'relative' }}>
-          {/* Run Log */}
           {runLog.length > 0 && (
             <div style={{
               position: 'absolute', bottom: '20px', left: '20px', zIndex: 10,
-              background: '#0f1622', border: '1px solid #1e293b', borderRadius: '8px',
+              background: 'rgba(6,8,15,0.9)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px',
               padding: '12px', maxWidth: '350px', maxHeight: '200px', overflowY: 'auto'
             }}>
               <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>WORKFLOW LOG</div>
@@ -552,7 +547,6 @@ export default function WorkflowPage({ navigate }) {
             </div>
           )}
 
-          {/* Empty state */}
           {nodes.length === 0 && (
             <div style={{
               position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
@@ -584,7 +578,6 @@ export default function WorkflowPage({ navigate }) {
           </ReactFlow>
         </div>
 
-        {/* RIGHT CONFIG PANEL */}
         {selectedNode ? (
           <ConfigPanel
             node={selectedNode}
@@ -593,7 +586,8 @@ export default function WorkflowPage({ navigate }) {
           />
         ) : (
           <div style={{
-            width: '280px', background: '#0f1622', borderLeft: '1px solid #1e293b',
+            width: '280px', background: 'rgba(6,8,15,0.85)', backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(255,255,255,0.05)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#334155', fontSize: '13px', textAlign: 'center', padding: '20px'
           }}>

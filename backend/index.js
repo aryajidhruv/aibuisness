@@ -207,3 +207,24 @@ app.get('/api/voice/results', async (req, res) => {
 
 const PORT = 5001;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+
+// ==========================================
+// 5. DASHBOARD STATS ROUTE
+// ==========================================
+app.get('/api/dashboard/stats', async (req, res) => {
+  try {
+      const results = await CallResult.find().sort({ createdAt: -1 });
+      
+      // Unique campaigns group karo
+      const stats = {
+          totalCalls: results.length,
+          called: results.filter(r => r.status === 'called').length,
+          failed: results.filter(r => r.status === 'failed').length,
+          recentCalls: results.slice(0, 10) // last 10 calls
+      };
+      
+      res.json({ success: true, stats });
+  } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+  }
+});
