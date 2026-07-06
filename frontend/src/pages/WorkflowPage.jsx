@@ -14,7 +14,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
 function TriggerNode({ data, selected }) {
   return (

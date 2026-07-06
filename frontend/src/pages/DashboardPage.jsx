@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { motion } from 'framer-motion'
 
-const API_BASE = 'http://localhost:5001'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
 
 const STATUS_COLOR = {
   running:   'text-green-400 bg-green-400/10',

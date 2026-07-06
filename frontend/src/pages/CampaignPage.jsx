@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-const API_BASE = 'http://localhost:5001'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
 
 const STATUS_COLOR = {
   'queued':      'text-amber-400 bg-amber-400/10',

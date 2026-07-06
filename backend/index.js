@@ -16,9 +16,19 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(passport.initialize()); // ✅ Passport middleware
+const allowedOrigins = [
+    'http://localhost:5173',
+    process.env.CLIENT_URL,
+].filter(Boolean);
 
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 
@@ -205,7 +215,7 @@ app.get('/api/voice/results', async (req, res) => {
     }
 });
 
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
 
 // ==========================================
